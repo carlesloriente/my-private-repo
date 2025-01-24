@@ -1,0 +1,49 @@
+name: Updating Submodule
+
+on:
+  repository_dispatch:
+    types:
+      - updating
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT }}
+          submodules: recursive
+
+      - name: Configure git user
+        env:
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+        run: |
+          git config --global user.email "$OWNER_EMAIL"
+          git config --global user.name "PRBot"
+
+      - name: Generate Unique variable based on timestamp
+        run: echo BRANCH=$(date +%s) >> $GITHUB_ENV
+
+      - name: Update submodules
+        run: |
+          git submodule update --init --recursive --remote
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "Update submodules"
+
+      - name: Create and push new branch
+        run: |
+          git checkout -b ${{ env.BRANCH }}
+          git push origin ${{ env.BRANCH }}
+
+      - name: Create pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        run: |
+          gh pr create -B develop -H ${{ env.BRANCH }} --title "PR: Submodule update to develop" --body "Created by Github action"
